@@ -1,0 +1,2 @@
+Harsh's GROQ API key 
+GROQ_API_KEY=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
