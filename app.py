@@ -2,19 +2,22 @@ import os
 import logging
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from langdetect import detect
+from langdetect import detect  # Request Lang Detection
 from groq import Groq
-from groq._base_client import SyncHttpxClientWrapper
+from groq._base_client import SyncHttpxClientWrapper  # Soln for proxy issues
 from flask_cors import CORS
 
+# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 
-CORS(app, origins=["http://localhost:5173"])
+CORS(app, origins=["http://localhost:5174"])  # Replace w/ frontend URL
 
+# Custom HTTP client for GROQ
 http_client = SyncHttpxClientWrapper()
 
+# Groq client with HTTP client
 client = Groq(api_key=os.getenv("GROQ_API_KEY"), http_client=http_client)
 
 NDRF_PROMPT = (
@@ -34,10 +37,15 @@ NDRF_PROMPT = (
     "'I'm an NDRF officer, and my priority is to address disaster-related queries and provide critical information for public safety.' and stop right there."
 )
 
+
+
+
+# GROQ's parameters
 DEFAULT_MODEL = "llama-3.1-70b-versatile"
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 1024
 
+#Logging starter
 logging.basicConfig(level=logging.DEBUG)
 
 @app.route('/')
@@ -48,9 +56,10 @@ def home():
 @app.route('/v1/chat', methods=['POST'])
 def generate_chat_response():
     try:
-        data = request.get_json()
+        data = request.get_json() 
         messages = data.get('messages', [])
 
+        # Check if the content empty
         if not messages or all(not msg.get("content") for msg in messages):
             return jsonify({
                 "message": (
@@ -63,19 +72,20 @@ def generate_chat_response():
 
         full_messages = [{"role": "system", "content": NDRF_PROMPT}]
 
+        # Add user role to each message and detect language
         for msg in messages:
-            msg["role"] = "user"
+            msg["role"] = "user" 
             user_language = detect(msg["content"])
             full_messages[0]["content"] = f"{NDRF_PROMPT} Respond in {user_language}."
             full_messages.append(msg)
 
+        # Send request to the Groq API
         response = client.chat.completions.create(
             messages=full_messages,
             model=DEFAULT_MODEL,
             temperature=DEFAULT_TEMPERATURE,
             max_tokens=DEFAULT_MAX_TOKENS
         )
-
         assistant_message = response.choices[0].message.content
 
         assistant_message = format_response_for_mobile(assistant_message)
@@ -102,6 +112,7 @@ def format_response_for_mobile(response):
 
     return "\n\n".join(paragraphs)
 
+
 @app.route('/v1/health', methods=['GET'])
 def health_check():
     app.logger.info('Health check accessed')
@@ -111,5 +122,6 @@ def health_check():
     }), 200
 
 if __name__ == '__main__':
+    # Run the Flask 
     app.logger.info('Starting Flask app')
     app.run(debug=True, host='0.0.0.0', port=5000)
